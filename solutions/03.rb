@@ -1,4 +1,11 @@
-class PrimeSequence
+class Integer
+  def prime?
+    return false if self < 2
+    (2..self / 2).none? {|i| self % i == 0}
+  end
+end
+
+class Sequence
   include Enumerable
 
   attr_reader :limit
@@ -6,134 +13,61 @@ class PrimeSequence
   def initialize(limit)
     @limit = limit
   end
+end
 
-  def to_a
-    enum_for(:each_number).lazy.select{ |x| prime?(x) }.take(@limit).to_a
+class PrimeSequence < Sequence
+  def each
+    limit, n = 0, 0
+    while limit < @limit
+      if n.prime?
+        yield n
+        limit += 1
+      end
+      n += 1
+    end
+  end
+end
+
+class RationalSequence < Sequence
+  def each
+    numerator, denominator, limit = 1, 1, 0
+    while limit < @limit
+      if numerator.gcd(denominator) == 1
+        yield Rational(numerator, denominator)
+        limit += 1
+      end
+      number = next_number(numerator, denominator)
+      numerator = number[:numerator]
+      denominator = number[:denominator]
+    end
   end
 
   private
 
-  def each_number
-    n = 0
-    loop do
-      n += 1
-      yield n
+  def next_number(numerator, denominator)
+    if numerator % 2 == denominator % 2
+      numerator += 1
+      denominator = [1, denominator.pred].max
+    else
+      denominator += 1
+      numerator = [1, numerator.pred].max
     end
-  end
-
-  def prime?(n)
-    return false if n < 2
-    (2..n / 2).none? {|i| n % i == 0}
+    {denominator: denominator, numerator: numerator}
   end
 end
 
-class RationalSequence
-  include Enumerable
-
-  def initialize(limit)
-    @limit = limit
-    @k = []
-    @s = collect_numbers
-  end
-
-  def to_a
-    @k.take(@limit)
-  end
-
-  def each
-    numerator, denominator = 1, 1
-    yielded_numbers = 0
-
-    while yielded_numbers < @limit do
-      if numerator.gcd(denominator) == 1
-        yield Rational(numerator, denominator)
-        yielded_numbers += 1
-      end
-
-      if numerator % 2 == denominator % 2
-        numerator += 1
-        denominator = [1, denominator - 1].max
-      else
-        numerator = [1, numerator - 1].max
-        denominator += 1
-      end
-    end
-  end
-
-  def collect_numbers
-    n = Rational(1)
-    @k << n
-    while @k.size < @limit
-      n = denominator(n) if n.denominator == 1
-      n = numerator(n) if n.numerator == 1
-    end
-  end
-
-  def numerator(n)
-    n = Rational(n.numerator, n.denominator + 1)
-    @k << n
-    target = n.denominator
-    while n.numerator < target
-      n = next_rational_numerator(n.numerator, n.denominator)
-      @k << n
-    end
-    n
-  end
-
-  def denominator(n)
-    n = Rational(n.numerator + 1, n.denominator)
-    @k << n
-    target = n.numerator
-    while n.denominator < target
-      n = next_rational_denominator(n.numerator, n.denominator)
-      @k << n
-    end
-    n
-  end
-
-  def next_rational_denominator(n_numerator, n_denominator)
-    i = 1
-    while @k.include?(Rational(n_numerator - i, n_denominator + i))
-      i += 1
-    end
-    Rational(n_numerator - i, n_denominator + i)
-  end
-
-  def next_rational_numerator(n_numerator, n_denominator)
-    i = 1
-    while @k.include?(Rational(n_numerator + i, n_denominator - i))
-      i += 1
-    end
-    Rational(n_numerator + i, n_denominator - i)
-  end
-end
-
-class FibonacciSequence
-  include Enumerable
-
-  attr_reader :limit
-
+class FibonacciSequence < Sequence
   def initialize(limit, initial_values = {first: 1, second: 1})
     @limit = limit
     @initial_values = initial_values
-    @fibonacci_array = []
   end
 
   def each
-    to_a
-    @fibonacci_array.each{ |element| yield element }
-  end
-
-  def to_a
-    enum_for(:each_number).lazy.take(@limit).to_a
-  end
-
-  def each_number
-    b, a = @initial_values[:first], @initial_values[:second]
-    loop do
+    b, a, limit = @initial_values[:first], @initial_values[:second], 0
+    while limit < @limit
       yield b
-      @fibonacci_array << b
       a, b = a + b, a
+      limit += 1
     end
   end
 end
@@ -142,63 +76,30 @@ module DrunkenMathematician
   module_function
 
   def meaningless(n)
-    first_n = RationalSequence.new(n).to_a
-    second_group = second_group(first_n)
-    first_group = first_n - second_group
-    product(first_group) / product(second_group)
+    groups = RationalSequence.new(n).
+      partition {|number| number.numerator.prime? || number.denominator.prime?}
+    groups.first.reduce(1, :*) / groups.last.reduce(1, :*)
   end
 
   def aimless(n)
-    first_n = PrimeSequence.new(n).to_a
-    array_rationals = make_pairs(first_n).map {|x| Rational(x[0], x[1])}
-    sum_rationals(array_rationals)
+    rationals = []
+    PrimeSequence.new(n).each_slice(2) do |numerator, denominator|
+      denominator ||= 1
+      rationals << Rational(numerator, denominator)
+    end
+    rationals.reduce(:+)
   end
 
   def worthless(n)
-    fibonacci_n = FibonacciSequence.new(n).to_a.last
-    first_n_rationals = RationalSequence.new(fibonacci_n).to_a
-    biggest_slice(fibonacci_n, first_n_rationals)
+    limit = FibonacciSequence.new(n).to_a.last
+    rationals = RationalSequence.new(limit).to_a
+    biggest_slice(limit, rationals)
   end
 
-  def sum_rationals(rationals)
-    rationals.reduce{|sum, x| sum + x}
-  end
-
-  def biggest_slice(number, rationals)
-    while sum_rationals(rationals).to_i > number
-      rationals = rationals - [rationals.last]
+  def biggest_slice(limit, rationals)
+    while rationals.reduce(:+) > limit
+      rationals -= [rationals.last]
     end
     rationals
-  end
-
-  def split(first_n, equal_to)
-    s = []
-    first_n.each_index {|x| s << first_n[x] if x % 2 == equal_to }
-    s
-  end
-
-  def make_pairs(first_n)
-    first_group = split(first_n, 0)
-    second_group = split(first_n, 1)
-    if first_group.size != second_group.size
-      second_group << 1
-    end
-    first_group.zip(second_group)
-  end
-
-  def product(group)
-    if group.size != 0
-      return group.reduce{|sum, x| sum * x}
-    end
-    1
-  end
-
-  def second_group(first_n)
-    first_n.select { |x| !prime?(x.numerator) && !prime?(x.denominator) }
-  end
-
-  def prime?(n)
-    return false if n < 2
-    (2..n / 2).none? {|i| n % i == 0}
   end
 end
