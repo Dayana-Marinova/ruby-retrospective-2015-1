@@ -27,7 +27,7 @@ class Deck
   attr_reader :cards
 
   def initialize(cards = all_cards)
-    @cards = cards.shuffle
+    @cards = cards
   end
 
   def each(&block)
@@ -65,10 +65,11 @@ class Deck
   end
 
   def to_s
-    @cards.each { |card| p card.to_s }
+    @cards.map { |element| element.to_s }.join("\n")
   end
 
-  def deal
+  def include?(second_card)
+    @cards.map { |card| card == second_card }.any?
   end
 
   private
@@ -147,7 +148,10 @@ class BeloteDeck < Deck
   end
 
   def deal
-    BeloteDeck.new(draw)
+    if self.size != 8
+      return BeloteDeck.new(draw)
+    end
+    self
   end
 
   def highest_of_suit(suit)
@@ -157,34 +161,34 @@ class BeloteDeck < Deck
   def belote?
     twenty = []
     SUITS.each do |suit|
-      twenty << @cards.include?(Card.new(:king, suit)) &&
-      @cards.include?(Card.new(:queen, suit))
+      queen, king = Card.new(:queen, suit), Card.new(:king, suit)
+      twenty << (@cards.include?(king) && @cards.include?(queen))
     end
     twenty.any?
   end
 
   def tierce?
-    three_consecutive = []
-    THREE_CONSECUTIVE.each do |tierce|
-      split_hand.each {|element| three_consecutive << (element == tierce) }
+    tierce = []
+    split_hand.each do |slice|
+      slice.each_cons(3) {|cut| tierce << THREE_CONSECUTIVE.include?(cut)}
     end
-    three_consecutive.any?
+    tierce.any?
   end
 
   def quarte?
-    four_consecutive = []
-    FOUR_CONSECUTIVE.each do |quarte|
-      split_hand.each {|element| four_consecutive << (element == quarte) }
+    quarte = []
+    split_hand.each do |slice|
+      slice.each_cons(4) {|cut| quarte << FOUR_CONSECUTIVE.include?(cut)}
     end
-    four_consecutive.any?
+    quarte.any?
   end
 
   def quint?
-    five_consecutive = []
-    FIVE_CONSECUTIVE.each do |quint|
-      split_hand.each {|element| five_consecutive << (element == quint) }
+    quint = []
+    split_hand.each do |slice|
+      slice.each_cons(5) {|cut| quint << FIVE_CONSECUTIVE.include?(cut) }
     end
-    five_consecutive.any?
+    quint.any?
   end
 
   def split_hand
@@ -231,8 +235,8 @@ class SixtySixDeck < Deck
   def twenty?(trump_suit)
     twenty = []
     (SUITS - [trump_suit]).each do |suit|
-      twenty << @cards.include?(Card.new(:king, suit)) &&
-      @cards.include?(Card.new(:queen, suit))
+      twenty << (@cards.include?(Card.new(:king, suit)) &&
+      @cards.include?(Card.new(:queen, suit)))
     end
     twenty.any?
   end

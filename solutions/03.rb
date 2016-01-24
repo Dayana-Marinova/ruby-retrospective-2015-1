@@ -23,7 +23,7 @@ class PrimeSequence
 
   def prime?(n)
     return false if n < 2
-    (2..n/2).none? {|i| n % i == 0}
+    (2..n / 2).none? {|i| n % i == 0}
   end
 end
 
@@ -38,6 +38,26 @@ class RationalSequence
 
   def to_a
     @k.take(@limit)
+  end
+
+  def each
+    numerator, denominator = 1, 1
+    yielded_numbers = 0
+
+    while yielded_numbers < @limit do
+      if numerator.gcd(denominator) == 1
+        yield Rational(numerator, denominator)
+        yielded_numbers += 1
+      end
+
+      if numerator % 2 == denominator % 2
+        numerator += 1
+        denominator = [1, denominator - 1].max
+      else
+        numerator = [1, numerator - 1].max
+        denominator += 1
+      end
+    end
   end
 
   def collect_numbers
@@ -73,18 +93,18 @@ class RationalSequence
 
   def next_rational_denominator(n_numerator, n_denominator)
     i = 1
-    while @k.include?(Rational(n_numerator-i, n_denominator+i))
+    while @k.include?(Rational(n_numerator - i, n_denominator + i))
       i += 1
     end
-    Rational(n_numerator-i, n_denominator+i)
+    Rational(n_numerator - i, n_denominator + i)
   end
 
   def next_rational_numerator(n_numerator, n_denominator)
     i = 1
-    while @k.include?(Rational(n_numerator+i, n_denominator-i))
+    while @k.include?(Rational(n_numerator + i, n_denominator - i))
       i += 1
     end
-    Rational(n_numerator+i, n_denominator-i)
+    Rational(n_numerator + i, n_denominator - i)
   end
 end
 
@@ -93,21 +113,26 @@ class FibonacciSequence
 
   attr_reader :limit
 
-  def initialize(limit, initial_values= {first: 1, second: 1})
+  def initialize(limit, initial_values = {first: 1, second: 1})
     @limit = limit
     @initial_values = initial_values
+    @fibonacci_array = []
+  end
+
+  def each
+    to_a
+    @fibonacci_array.each{ |element| yield element }
   end
 
   def to_a
     enum_for(:each_number).lazy.take(@limit).to_a
   end
 
-  private
-
   def each_number
     b, a = @initial_values[:first], @initial_values[:second]
     loop do
       yield b
+      @fibonacci_array << b
       a, b = a + b, a
     end
   end
@@ -131,7 +156,7 @@ module DrunkenMathematician
 
   def worthless(n)
     fibonacci_n = FibonacciSequence.new(n).to_a.last
-    first_n_rationals = RationalSequence.new(n).to_a
+    first_n_rationals = RationalSequence.new(fibonacci_n).to_a
     biggest_slice(fibonacci_n, first_n_rationals)
   end
 
@@ -140,7 +165,7 @@ module DrunkenMathematician
   end
 
   def biggest_slice(number, rationals)
-    while sum_rationals(rationals) > number
+    while sum_rationals(rationals).to_i > number
       rationals = rationals - [rationals.last]
     end
     rationals
@@ -155,11 +180,17 @@ module DrunkenMathematician
   def make_pairs(first_n)
     first_group = split(first_n, 0)
     second_group = split(first_n, 1)
+    if first_group.size != second_group.size
+      second_group << 1
+    end
     first_group.zip(second_group)
   end
 
   def product(group)
-    group.reduce{|sum, x| sum * x}
+    if group.size != 0
+      return group.reduce{|sum, x| sum * x}
+    end
+    1
   end
 
   def second_group(first_n)
@@ -168,6 +199,6 @@ module DrunkenMathematician
 
   def prime?(n)
     return false if n < 2
-    (2..n/2).none? {|i| n % i == 0}
+    (2..n / 2).none? {|i| n % i == 0}
   end
 end
