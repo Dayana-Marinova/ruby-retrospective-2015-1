@@ -4,8 +4,7 @@ def convert_to_bgn(price, currency)
   (price * EXCHANGE_RATE[currency]).round(2)
 end
 
-def compare_prices(price_first, currency_first, price_second, currency_second)
-  calculate_first = price_first * EXCHANGE_RATE[currency_first]
-  calculate_second = price_second * EXCHANGE_RATE[currency_second]
-  calculate_first <=> calculate_second
+def compare_prices(price_one, currency_one, price_two, currency_two)
+  (price_one * EXCHANGE_RATE[currency_one]) <=>
+  (price_two * EXCHANGE_RATE[currency_two])
 end
