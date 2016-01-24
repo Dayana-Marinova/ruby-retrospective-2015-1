@@ -33,6 +33,3 @@ DEPENDENCIES
   rake
   rspec
   skeptic (~> 0.0.16)
-
-BUNDLED WITH
-   1.10.6
