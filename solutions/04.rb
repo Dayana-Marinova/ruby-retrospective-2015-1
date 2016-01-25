@@ -4,8 +4,7 @@ class Card
   attr_reader :rank, :suit
 
   def initialize(rank, suit)
-    @rank = rank
-    @suit = suit
+    @rank, @suit = rank, suit
   end
 
   def to_s
@@ -26,75 +25,68 @@ class Deck
 
   attr_reader :cards
 
-  def initialize(cards = all_cards)
-    @cards = cards
+  def initialize(cards = full_deck)
+    @deck = cards
   end
 
   def each(&block)
-    @cards.each(&block)
+    @deck.each(&block)
   end
 
   def size
-    @cards.size
+    @deck.size
   end
 
   def draw_top_card
-    @cards.delete(@cards.first)
+    @deck.shift
   end
 
   def draw_bottom_card
-    @cards.delete(@cards.last)
+    @deck.pop
   end
 
   def top_card
-    @cards.first
+    @deck.first
   end
 
   def bottom_card
-    @cards.last
+    @deck.last
   end
 
   def shuffle
-    @cards.shuffle!
+    @deck.shuffle!
   end
 
   def sort
-    sorted_deck = []
-    SUITS.each { |suit| sorted_deck << sort_by_ranks(suit) }
-    @cards = sorted_deck.flatten
+    @deck = [].tap{|deck| SUITS.each{|suit| deck << sort_by_rank(suit)}}.flatten
   end
 
   def to_s
-    @cards.map { |element| element.to_s }.join("\n")
+    @deck.join("\n")
   end
 
-  def include?(second_card)
-    @cards.map { |card| card == second_card }.any?
+  def deal
+    self.class.new(@deck.shift(self.hand_size))
   end
 
   private
 
-  def all_cards
-    name = self.class
-    cards = []
-    SUITS.each {|suit| name::RANKS.each {|rank| cards << Card.new(rank, suit)}}
-    cards
+  def full_deck
+    @deck = self.class::RANKS.product(SUITS).map {|r,s| Card.new(r,s)}
   end
 
-  def sort_by_ranks(suit)
-    carts_to_sort = @cards.select { |card| card.suit == suit }
+  def sort_by_rank(suit)
+    carts_to_sort = @deck.select { |card| card.suit == suit }
     carts_to_sort.sort_by! { |card| self.class::RANKS.index(card.rank)}
   end
 end
 
 class WarDeck < Deck
+  attr_reader :hand_size
 
   def initialize(*arguments)
     super
-  end
-
-  def deal
-    WarDeck.new(draw)
+    @hand_size = 26
   end
 
   def play_card
@@ -104,153 +96,99 @@ class WarDeck < Deck
   def allow_face_up?
     size <= 3
   end
-
-  private
-
-  def draw
-    cards = []
-    (size / 2).times{ |i| cards << draw_top_card }
-    cards
-  end
 end
 
 class BeloteDeck < Deck
 
+  attr_reader :hand_size
+
   RANKS = [:ace, :king, :queen, :jack, 10, 9, 8, 7]
+  THREE_CONSECUTIVE = RANKS.each_cons(3)
+  FOUR_CONSECUTIVE = RANKS.each_cons(4)
+  FIVE_CONSECUTIVE = RANKS.each_cons(5)
 
-  THREE_CONSECUTIVE = [
-    [:ace, :king, :queen],
-    [:king, :queen, :jack],
-    [:queen, :jack, 10],
-    [:jack, 10, 9],
-    [10, 9, 8],
-    [9, 8, 7]
-  ]
-
-  FOUR_CONSECUTIVE = [
-    [:ace, :king, :queen, :jack],
-    [:king, :queen, :jack, 10],
-    [:queen, :jack, 10, 9],
-    [:jack, 10, 9, 8],
-    [10, 9, 8, 7]
-  ]
-
-  FIVE_CONSECUTIVE = [
-    [:ace, :king, :queen, :jack, 10],
-    [:king, :queen, :jack, 10, 9],
-    [:queen, :jack, 10, 9, 8],
-    [:jack, 10, 9, 8, 7]
-  ]
-
-
-  def initialize(*arguments)
+  def initialize(*cards)
     super
-  end
-
-  def deal
-    if self.size != 8
-      return BeloteDeck.new(draw)
-    end
-    self
+    @hand_size = 8
   end
 
   def highest_of_suit(suit)
-    sort.select { |card| card.suit == suit }.first
+    get_sorted(suit).first
   end
 
   def belote?
-    twenty = []
-    SUITS.each do |suit|
-      queen, king = Card.new(:queen, suit), Card.new(:king, suit)
-      twenty << (@cards.include?(king) && @cards.include?(queen))
-    end
-    twenty.any?
+    [].tap{|call| SUITS.each{|suit| call << twenty?(suit)}}.any?
   end
 
   def tierce?
-    tierce = []
-    split_hand.each do |slice|
-      slice.each_cons(3) {|cut| tierce << THREE_CONSECUTIVE.include?(cut)}
-    end
-    tierce.any?
+    have_announcements(3, THREE_CONSECUTIVE)
   end
 
   def quarte?
-    quarte = []
-    split_hand.each do |slice|
-      slice.each_cons(4) {|cut| quarte << FOUR_CONSECUTIVE.include?(cut)}
-    end
-    quarte.any?
+    have_announcements(4, FOUR_CONSECUTIVE)
   end
 
   def quint?
-    quint = []
-    split_hand.each do |slice|
-      slice.each_cons(5) {|cut| quint << FIVE_CONSECUTIVE.include?(cut) }
-    end
-    quint.any?
-  end
-
-  def split_hand
-    splits = []
-    SUITS.each do |suit|
-      splits << sort.select{ |card| card.suit == suit }.map(&:rank)
-    end
-    splits
+    have_announcements(5, FIVE_CONSECUTIVE)
   end
 
   def carre_of_jacks?
-    @cards.select { |card| card.rank == :jack }.size == 4
+    carre_of(:jack)
   end
 
   def carre_of_nines?
-    @cards.select { |card| card.rank == 9 }.size == 4
+    carre_of(9)
   end
 
   def carre_of_aces?
-    @cards.select { |card| card.rank == :ace }.size == 4
+    carre_of(:ace)
   end
 
   private
 
-  def draw
-    cards = []
-    (size / 4).times{ |i| cards << draw_top_card }
-    cards
+  def get_sorted(suit)
+    sort.select { |card| card.suit == suit }
+  end
+
+  def carre_of(rank)
+    @deck.select { |card| card.rank == rank }.size == 4
+  end
+
+  def have_announcements(count, consecutive)
+    announcement = []
+    split_hand.each do |slice|
+      slice.each_cons(count) {|cut| announcement << consecutive.member?(cut)}
+    end
+    announcement.any?
+  end
+
+  def twenty?(suit)
+    @deck.member?(Card.new(:king, suit)) &&
+      @deck.member?(Card.new(:queen, suit))
+  end
+
+  def split_hand
+    [].tap {|splits| SUITS.each {|suit| splits << get_sorted(suit).map(&:rank)}}
   end
 end
 
 class SixtySixDeck < Deck
 
+  attr_reader :hand_size
+
   RANKS = [:ace, :king, :queen, :jack, 10, 9]
 
   def initialize(*arguments)
     super
-  end
-
-  def deal
-    SixtySixDeck.new(draw)
+    @hand_size = 6
   end
 
   def twenty?(trump_suit)
-    twenty = []
-    (SUITS - [trump_suit]).each do |suit|
-      twenty << (@cards.include?(Card.new(:king, suit)) &&
-      @cards.include?(Card.new(:queen, suit)))
-    end
-    twenty.any?
+    [].tap{|call| (SUITS - [trump_suit]).each{|suit| call << forty?(suit)}}.any?
   end
 
   def forty?(trump_suit)
-    @cards.include?(Card.new(:king, trump_suit)) &&
-    @cards.include?(Card.new(:queen, trump_suit))
-  end
-
-  private
-
-  def draw
-    cards = []
-    6.times{ |i| cards << draw_top_card }
-    cards
+    @deck.member?(Card.new(:king, trump_suit)) &&
+      @deck.member?(Card.new(:queen, trump_suit))
   end
 end
